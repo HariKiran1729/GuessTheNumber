@@ -19,6 +19,12 @@ class GuessTheNumberGameWeb {
         // Welcome screen
         document.getElementById('create-room-btn').addEventListener('click', () => this.showCreateRoom());
         document.getElementById('join-room-btn').addEventListener('click', () => this.showJoinRoom());
+        
+        // Add debug button functionality if it exists
+        const debugBtn = document.getElementById('debug-clear-btn');
+        if (debugBtn) {
+            debugBtn.addEventListener('click', () => this.clearOldInconsistentData());
+        }
 
         // Create room screen
         document.getElementById('back-from-create-btn').addEventListener('click', () => this.showWelcome());
@@ -116,6 +122,36 @@ class GuessTheNumberGameWeb {
     showWelcome() {
         this.showScreen('welcome-screen');
         this.clearGameData();
+        this.debugLocalStorage();
+    }
+
+    debugLocalStorage() {
+        console.log('=== DEBUG: Current localStorage state ===');
+        const allGames = JSON.parse(localStorage.getItem('cloudGames') || '{}');
+        console.log('cloudGames object:', allGames);
+        
+        const allKeys = Object.keys(localStorage).filter(key => key.startsWith('game_'));
+        console.log('All game_ keys in localStorage:', allKeys);
+        
+        allKeys.forEach(key => {
+            const data = localStorage.getItem(key);
+            console.log(`${key}:`, JSON.parse(data));
+        });
+        console.log('=== END DEBUG ===');
+    }
+
+    clearOldInconsistentData() {
+        console.log('Clearing old inconsistent localStorage data...');
+        
+        // Clear all game-related localStorage items
+        Object.keys(localStorage).forEach(key => {
+            if (key.startsWith('game_') || key === 'cloudGames') {
+                localStorage.removeItem(key);
+                console.log('Removed:', key);
+            }
+        });
+        
+        console.log('Old data cleared');
     }
 
     showCreateRoom() {
@@ -242,13 +278,29 @@ class GuessTheNumberGameWeb {
         console.log('Found game data:', gameData);
         
         if (!gameData) {
-            // Check if there are any games at all
-            const allGames = JSON.parse(localStorage.getItem('cloudGames') || '{}');
-            console.log('All available games:', Object.keys(allGames));
+            // Comprehensive debugging
+            console.log('=== JOIN FAILURE DEBUG ===');
+            console.log('Looking for room:', roomCode);
             
-            // Check localStorage directly too
+            const allGames = JSON.parse(localStorage.getItem('cloudGames') || '{}');
+            console.log('cloudGames object:', allGames);
+            console.log('Available rooms in cloudGames:', Object.keys(allGames));
+            
             const allLocalStorageKeys = Object.keys(localStorage).filter(key => key.startsWith('game_'));
             console.log('All localStorage game keys:', allLocalStorageKeys);
+            
+            // Check each key individually
+            allLocalStorageKeys.forEach(key => {
+                const data = localStorage.getItem(key);
+                try {
+                    const parsedData = JSON.parse(data);
+                    console.log(`${key}: roomCode=${parsedData.roomCode}, hostId=${parsedData.hostId}`);
+                } catch (e) {
+                    console.log(`${key}: Invalid JSON data`);
+                }
+            });
+            
+            console.log('=== END JOIN FAILURE DEBUG ===');
             
             document.getElementById('join-error').textContent = `Room "${roomCode}" not found. Available rooms: ${Object.keys(allGames).join(', ') || 'None'}`;
             return;
