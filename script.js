@@ -9,8 +9,10 @@ class GuessTheNumberGame {
         this.gameHistory = [];
         this.gameActive = false;
         this.pollingInterval = null;
+        this.playerId = this.generatePlayerId();
         
         this.initializeEventListeners();
+        this.setupStorageListener();
         this.loadGameState();
     }
 
@@ -38,6 +40,45 @@ class GuessTheNumberGame {
         document.getElementById('guess-input').addEventListener('input', (e) => this.validateGuessInput(e.target.value));
         document.getElementById('leave-game-btn').addEventListener('click', () => this.leaveGame());
         document.getElementById('new-game-btn').addEventListener('click', () => this.showWelcome());
+    }
+
+    setupStorageListener() {
+        // Listen for localStorage changes across tabs
+        window.addEventListener('storage', (e) => {
+            if (e.key && e.key.startsWith('game_') && this.roomCode) {
+                if (e.key === `game_${this.roomCode}`) {
+                    this.handleStorageChange(JSON.parse(e.newValue));
+                }
+            }
+        });
+
+        // Also check for changes periodically (fallback)
+        setInterval(() => {
+            if (this.roomCode && this.currentScreen === 'game-screen') {
+                this.loadGameState();
+            }
+        }, 2000);
+    }
+
+    handleStorageChange(gameData) {
+        if (!gameData) return;
+        
+        // Update game state based on storage changes
+        if (this.isHost && gameData.guesserId && !this.gameActive) {
+            this.gameActive = true;
+            this.showGameScreen();
+        }
+        
+        if (gameData.guesses) {
+            this.updateGuessHistory(gameData.guesses);
+            
+            if (gameData.guesses.length > 0) {
+                const lastGuess = gameData.guesses[gameData.guesses.length - 1];
+                if (lastGuess.isWin || gameData.guesses.length >= this.maxGuesses) {
+                    this.endGame(lastGuess.isWin, gameData.guesses.length);
+                }
+            }
+        }
     }
 
     generateRoomCode() {
@@ -142,19 +183,20 @@ class GuessTheNumberGame {
         const gameData = {
             roomCode: this.roomCode,
             secretNumber: secretNumber,
-            hostId: this.generatePlayerId(),
+            hostId: this.playerId,
             guesserId: null,
             gameActive: false,
             guesses: [],
             timestamp: Date.now()
         };
 
-        // Store in both localStorage and sessionStorage for better cross-tab communication
+        // Store game data
         localStorage.setItem(`game_${this.roomCode}`, JSON.stringify(gameData));
-        sessionStorage.setItem(`game_${this.roomCode}`, JSON.stringify(gameData));
         
         document.getElementById('waiting-message').style.display = 'block';
         this.startPollingForPlayer();
+        
+        console.log('Game created with room code:', this.roomCode);
     }
 
     joinGame() {
@@ -164,32 +206,33 @@ class GuessTheNumberGame {
             return;
         }
 
-        // For GitHub Pages, we'll use a simplified approach where both players play in the same browser
-        // Check if game exists in localStorage or sessionStorage
-        let gameData = localStorage.getItem(`game_${roomCode}`) || sessionStorage.getItem(`game_${roomCode}`);
+        // Check if game exists in localStorage
+        let gameData = localStorage.getItem(`game_${roomCode}`);
         if (!gameData) {
-            document.getElementById('join-error').textContent = 'Room not found. Make sure the room creator is on the same device/browser.';
+            document.getElementById('join-error').textContent = 'Room not found. Make sure the room creator is in another tab of this browser.';
             return;
         }
 
         const game = JSON.parse(gameData);
-        if (game.guesserId) {
+        if (game.guesserId && game.guesserId !== this.playerId) {
             document.getElementById('join-error').textContent = 'Room is full';
             return;
         }
 
         // Join the game
-        game.guesserId = this.generatePlayerId();
+        game.guesserId = this.playerId;
         game.gameActive = true;
         
-        // Store in both localStorage and sessionStorage for better cross-tab communication
+        // Store updated game data
         localStorage.setItem(`game_${roomCode}`, JSON.stringify(game));
-        sessionStorage.setItem(`game_${roomCode}`, JSON.stringify(game));
 
         this.roomCode = roomCode;
         this.secretNumber = game.secretNumber;
         this.gameActive = true;
+        this.isHost = false;
         this.showGameScreen();
+        
+        console.log('Successfully joined room:', roomCode);
     }
 
     showGameScreen() {
@@ -221,13 +264,15 @@ class GuessTheNumberGame {
 
     startPollingForPlayer() {
         this.pollingInterval = setInterval(() => {
-            const gameData = localStorage.getItem(`game_${this.roomCode}`) || sessionStorage.getItem(`game_${this.roomCode}`);
+            const gameData = localStorage.getItem(`game_${this.roomCode}`);
             if (gameData) {
                 const game = JSON.parse(gameData);
                 if (game.guesserId && game.gameActive) {
                     this.gameActive = true;
                     clearInterval(this.pollingInterval);
+                    document.getElementById('waiting-message').style.display = 'none';
                     this.showGameScreen();
+                    console.log('Player 2 joined! Starting game...');
                 }
             }
         }, 1000);
@@ -242,11 +287,17 @@ class GuessTheNumberGame {
     loadGameState() {
         if (!this.roomCode) return;
         
-        // Check both localStorage and sessionStorage
-        const gameData = localStorage.getItem(`game_${this.roomCode}`) || sessionStorage.getItem(`game_${this.roomCode}`);
+        const gameData = localStorage.getItem(`game_${this.roomCode}`);
         if (gameData) {
             const game = JSON.parse(gameData);
             this.updateGuessHistory(game.guesses || []);
+            
+            // Update tries counter
+            if (game.guesses) {
+                this.guessCount = game.guesses.length;
+                const triesLeft = this.maxGuesses - this.guessCount;
+                document.getElementById('tries-count').textContent = triesLeft;
+            }
             
             if (game.guesses && game.guesses.length > 0) {
                 const lastGuess = game.guesses[game.guesses.length - 1];
@@ -318,7 +369,7 @@ class GuessTheNumberGame {
     }
 
     addGuessToHistory(guess, result) {
-        const gameData = localStorage.getItem(`game_${this.roomCode}`) || sessionStorage.getItem(`game_${this.roomCode}`);
+        const gameData = localStorage.getItem(`game_${this.roomCode}`);
         const game = gameData ? JSON.parse(gameData) : { guesses: [] };
         
         if (!game.guesses) game.guesses = [];
@@ -331,10 +382,10 @@ class GuessTheNumberGame {
             timestamp: Date.now()
         });
 
-        // Store in both storage locations
         localStorage.setItem(`game_${this.roomCode}`, JSON.stringify(game));
-        sessionStorage.setItem(`game_${this.roomCode}`, JSON.stringify(game));
         this.updateGuessHistory(game.guesses);
+        
+        console.log('Added guess to history:', guess, result);
     }
 
     updateGuessHistory(guesses) {
@@ -384,7 +435,6 @@ class GuessTheNumberGame {
     clearGameData() {
         if (this.roomCode) {
             localStorage.removeItem(`game_${this.roomCode}`);
-            sessionStorage.removeItem(`game_${this.roomCode}`);
         }
         
         clearInterval(this.pollingInterval);
@@ -397,6 +447,8 @@ class GuessTheNumberGame {
         
         document.getElementById('game-result').style.display = 'none';
         document.getElementById('waiting-message').style.display = 'none';
+        
+        console.log('Game data cleared');
     }
 
     generatePlayerId() {
