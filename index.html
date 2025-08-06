@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guess The Number - 2 Player Game</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Welcome Screen -->
+        <div id="welcome-screen" class="screen active">
+            <h1>🎯 Guess The Number</h1>
+            <p class="subtitle">Challenge your friend in this exciting number guessing game!</p>
+            <div class="button-group">
+                <button id="create-room-btn" class="btn btn-primary">Create Room</button>
+                <button id="join-room-btn" class="btn btn-secondary">Join Room</button>
+            </div>
+        </div>
+
+        <!-- Create Room Screen -->
+        <div id="create-room-screen" class="screen">
+            <h2>Create a Room</h2>
+            <div class="room-code-display">
+                <label>Your Room Code:</label>
+                <div id="room-code" class="code-display"></div>
+                <button id="copy-code-btn" class="btn btn-small">Copy Code</button>
+            </div>
+            <div class="input-group">
+                <label for="secret-number">Enter your 4-digit secret number (no repeating digits):</label>
+                <input type="text" id="secret-number" maxlength="4" placeholder="e.g., 1729">
+                <div id="number-error" class="error-message"></div>
+            </div>
+            <div class="button-group">
+                <button id="start-game-btn" class="btn btn-primary" disabled>Start Game</button>
+                <button id="back-from-create-btn" class="btn btn-secondary">Back</button>
+            </div>
+            <div id="waiting-message" class="waiting-message" style="display: none;">
+                <p>Waiting for player 2 to join...</p>
+                <div class="spinner"></div>
+            </div>
+        </div>
+
+        <!-- Join Room Screen -->
+        <div id="join-room-screen" class="screen">
+            <h2>Join a Room</h2>
+            <div class="input-group">
+                <label for="room-code-input">Enter Room Code:</label>
+                <input type="text" id="room-code-input" maxlength="7" placeholder="Enter 7-letter code">
+                <div id="join-error" class="error-message"></div>
+            </div>
+            <div class="button-group">
+                <button id="join-game-btn" class="btn btn-primary">Join Game</button>
+                <button id="back-from-join-btn" class="btn btn-secondary">Back</button>
+            </div>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="game-screen" class="screen">
+            <div class="game-header">
+                <h2 id="game-title">Guess The Number</h2>
+                <div class="game-info">
+                    <span id="room-info">Room: <span id="current-room-code"></span></span>
+                    <span id="tries-left">Tries left: <span id="tries-count">15</span></span>
+                </div>
+            </div>
+
+            <div id="player-role" class="role-display"></div>
+
+            <!-- Game Area -->
+            <div class="game-area">
+                <div class="input-group">
+                    <label for="guess-input">Enter your guess (4 digits):</label>
+                    <input type="text" id="guess-input" maxlength="4" placeholder="e.g., 1234">
+                    <button id="submit-guess-btn" class="btn btn-primary">Submit Guess</button>
+                </div>
+
+                <div class="guess-history">
+                    <h3>Guess History</h3>
+                    <div id="history-list"></div>
+                </div>
+            </div>
+
+            <!-- Game Result -->
+            <div id="game-result" class="game-result" style="display: none;">
+                <h3 id="result-title"></h3>
+                <p id="result-message"></p>
+                <button id="new-game-btn" class="btn btn-primary">New Game</button>
+            </div>
+
+            <button id="leave-game-btn" class="btn btn-secondary">Leave Game</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html> 
