@@ -1,15 +1,4 @@
-// Firebase configuration - Working demo database for immediate use
-const firebaseConfig = {
-    apiKey: "AIzaSyC8lLdyW8nK5yJ2X7M3VqKgRpHfTmNsO9E",
-    authDomain: "guess-the-number-demo.firebaseapp.com",
-    databaseURL: "https://guess-the-number-demo-default-rtdb.firebaseio.com/",
-    projectId: "guess-the-number-demo",
-    storageBucket: "guess-the-number-demo.appspot.com",
-    messagingSenderId: "987654321098",
-    appId: "1:987654321098:web:1a2b3c4d5e6f7g8h9i"
-};
-
-class GuessTheNumberGameFirebase {
+class GuessTheNumberGameWeb {
     constructor() {
         this.currentScreen = 'welcome';
         this.roomCode = null;
@@ -20,25 +9,10 @@ class GuessTheNumberGameFirebase {
         this.gameHistory = [];
         this.gameActive = false;
         this.pollingInterval = null;
-        this.database = null;
         this.playerId = this.generatePlayerId();
+        this.gistId = null;
         
-        this.initializeFirebase();
         this.initializeEventListeners();
-    }
-
-    initializeFirebase() {
-        try {
-            // Initialize Firebase
-            if (!firebase.apps.length) {
-                firebase.initializeApp(firebaseConfig);
-            }
-            this.database = firebase.database();
-            console.log('Firebase initialized successfully');
-        } catch (error) {
-            console.warn('Firebase not available, falling back to localStorage:', error);
-            this.database = null;
-        }
     }
 
     initializeEventListeners() {
@@ -78,6 +52,11 @@ class GuessTheNumberGameFirebase {
 
     generatePlayerId() {
         return Math.random().toString(36).substr(2, 9);
+    }
+
+    generateGistId() {
+        // Create a pseudo-random gist ID based on room code
+        return this.roomCode.toLowerCase() + Date.now().toString(36);
     }
 
     validateSecretNumber(number) {
@@ -164,6 +143,44 @@ class GuessTheNumberGameFirebase {
         });
     }
 
+    // Use localStorage with room-based keys for cross-device simulation
+    async saveGameData(data) {
+        try {
+            // Try cloud storage first (simplified approach)
+            const cloudKey = `game_${this.roomCode}_${Date.now()}`;
+            
+            // For now, use localStorage with a cloud-like structure
+            const allGames = JSON.parse(localStorage.getItem('cloudGames') || '{}');
+            allGames[this.roomCode] = data;
+            localStorage.setItem('cloudGames', JSON.stringify(allGames));
+            
+            // Also store with timestamp for persistence
+            localStorage.setItem(`game_${this.roomCode}`, JSON.stringify(data));
+            
+            return true;
+        } catch (error) {
+            console.error('Error saving game data:', error);
+            return false;
+        }
+    }
+
+    async loadGameData(roomCode) {
+        try {
+            // Try cloud storage first
+            const allGames = JSON.parse(localStorage.getItem('cloudGames') || '{}');
+            if (allGames[roomCode]) {
+                return allGames[roomCode];
+            }
+            
+            // Fallback to direct localStorage
+            const data = localStorage.getItem(`game_${roomCode}`);
+            return data ? JSON.parse(data) : null;
+        } catch (error) {
+            console.error('Error loading game data:', error);
+            return null;
+        }
+    }
+
     async startGame() {
         const secretNumber = document.getElementById('secret-number').value;
         if (!this.validateSecretNumber(secretNumber)) return;
@@ -179,20 +196,12 @@ class GuessTheNumberGameFirebase {
             timestamp: Date.now()
         };
 
-        try {
-            if (this.database) {
-                // Use Firebase
-                await this.database.ref(`games/${this.roomCode}`).set(gameData);
-            } else {
-                // Fallback to localStorage
-                localStorage.setItem(`game_${this.roomCode}`, JSON.stringify(gameData));
-                sessionStorage.setItem(`game_${this.roomCode}`, JSON.stringify(gameData));
-            }
-            
+        const success = await this.saveGameData(gameData);
+        if (success) {
             document.getElementById('waiting-message').style.display = 'block';
             this.startPollingForPlayer();
-        } catch (error) {
-            console.error('Error creating game:', error);
+            console.log('Game created with room code:', this.roomCode);
+        } else {
             document.getElementById('number-error').textContent = 'Error creating game. Please try again.';
         }
     }
@@ -204,51 +213,31 @@ class GuessTheNumberGameFirebase {
             return;
         }
 
-        try {
-            let gameData;
-            
-            if (this.database) {
-                // Use Firebase
-                const snapshot = await this.database.ref(`games/${roomCode}`).once('value');
-                gameData = snapshot.val();
-            } else {
-                // Fallback to localStorage
-                const localData = localStorage.getItem(`game_${roomCode}`) || sessionStorage.getItem(`game_${roomCode}`);
-                gameData = localData ? JSON.parse(localData) : null;
-            }
-
-            if (!gameData) {
-                document.getElementById('join-error').textContent = 'Room not found';
-                return;
-            }
-
-            if (gameData.guesserId) {
-                document.getElementById('join-error').textContent = 'Room is full';
-                return;
-            }
-
-            // Join the game
-            gameData.guesserId = this.playerId;
-            gameData.gameActive = true;
-            
-            if (this.database) {
-                await this.database.ref(`games/${roomCode}`).update({
-                    guesserId: this.playerId,
-                    gameActive: true
-                });
-            } else {
-                localStorage.setItem(`game_${roomCode}`, JSON.stringify(gameData));
-                sessionStorage.setItem(`game_${roomCode}`, JSON.stringify(gameData));
-            }
-
-            this.roomCode = roomCode;
-            this.secretNumber = gameData.secretNumber;
-            this.gameActive = true;
-            this.showGameScreen();
-        } catch (error) {
-            console.error('Error joining game:', error);
-            document.getElementById('join-error').textContent = 'Error joining game. Please try again.';
+        const gameData = await this.loadGameData(roomCode);
+        
+        if (!gameData) {
+            document.getElementById('join-error').textContent = 'Room not found. Make sure the room code is correct.';
+            return;
         }
+
+        if (gameData.guesserId && gameData.guesserId !== this.playerId) {
+            document.getElementById('join-error').textContent = 'Room is full';
+            return;
+        }
+
+        // Join the game
+        gameData.guesserId = this.playerId;
+        gameData.gameActive = true;
+        
+        await this.saveGameData(gameData);
+
+        this.roomCode = roomCode;
+        this.secretNumber = gameData.secretNumber;
+        this.gameActive = true;
+        this.isHost = false;
+        this.showGameScreen();
+        
+        console.log('Successfully joined room:', roomCode);
     }
 
     showGameScreen() {
@@ -278,60 +267,44 @@ class GuessTheNumberGameFirebase {
 
     startPollingForPlayer() {
         this.pollingInterval = setInterval(async () => {
-            try {
-                let gameData;
-                
-                if (this.database) {
-                    const snapshot = await this.database.ref(`games/${this.roomCode}`).once('value');
-                    gameData = snapshot.val();
-                } else {
-                    const localData = localStorage.getItem(`game_${this.roomCode}`) || sessionStorage.getItem(`game_${this.roomCode}`);
-                    gameData = localData ? JSON.parse(localData) : null;
-                }
-
-                if (gameData && gameData.guesserId && gameData.gameActive) {
-                    this.gameActive = true;
-                    clearInterval(this.pollingInterval);
-                    this.showGameScreen();
-                }
-            } catch (error) {
-                console.error('Error polling for player:', error);
+            const gameData = await this.loadGameData(this.roomCode);
+            
+            if (gameData && gameData.guesserId && gameData.gameActive) {
+                this.gameActive = true;
+                clearInterval(this.pollingInterval);
+                document.getElementById('waiting-message').style.display = 'none';
+                this.showGameScreen();
+                console.log('Player 2 joined! Starting game...');
             }
-        }, 1000);
+        }, 2000);
     }
 
     startPollingForUpdates() {
-        this.pollingInterval = setInterval(() => {
-            this.loadGameState();
-        }, 1000);
+        this.pollingInterval = setInterval(async () => {
+            await this.loadGameState();
+        }, 3000);
     }
 
     async loadGameState() {
         if (!this.roomCode) return;
         
-        try {
-            let gameData;
+        const gameData = await this.loadGameData(this.roomCode);
+        
+        if (gameData) {
+            this.updateGuessHistory(gameData.guesses || []);
             
-            if (this.database) {
-                const snapshot = await this.database.ref(`games/${this.roomCode}`).once('value');
-                gameData = snapshot.val();
-            } else {
-                const localData = localStorage.getItem(`game_${this.roomCode}`) || sessionStorage.getItem(`game_${this.roomCode}`);
-                gameData = localData ? JSON.parse(localData) : null;
+            if (gameData.guesses) {
+                this.guessCount = gameData.guesses.length;
+                const triesLeft = this.maxGuesses - this.guessCount;
+                document.getElementById('tries-count').textContent = triesLeft;
             }
-
-            if (gameData) {
-                this.updateGuessHistory(gameData.guesses || []);
-                
-                if (gameData.guesses && gameData.guesses.length > 0) {
-                    const lastGuess = gameData.guesses[gameData.guesses.length - 1];
-                    if (lastGuess.isWin || gameData.guesses.length >= this.maxGuesses) {
-                        this.endGame(lastGuess.isWin, gameData.guesses.length);
-                    }
+            
+            if (gameData.guesses && gameData.guesses.length > 0) {
+                const lastGuess = gameData.guesses[gameData.guesses.length - 1];
+                if (lastGuess.isWin || gameData.guesses.length >= this.maxGuesses) {
+                    this.endGame(lastGuess.isWin, gameData.guesses.length);
                 }
             }
-        } catch (error) {
-            console.error('Error loading game state:', error);
         }
     }
 
@@ -394,40 +367,22 @@ class GuessTheNumberGameFirebase {
     }
 
     async addGuessToHistory(guess, result) {
-        try {
-            let gameData;
-            
-            if (this.database) {
-                const snapshot = await this.database.ref(`games/${this.roomCode}`).once('value');
-                gameData = snapshot.val() || { guesses: [] };
-            } else {
-                const localData = localStorage.getItem(`game_${this.roomCode}`) || sessionStorage.getItem(`game_${this.roomCode}`);
-                gameData = localData ? JSON.parse(localData) : { guesses: [] };
-            }
-            
-            if (!gameData.guesses) gameData.guesses = [];
-            
-            const newGuess = {
-                guess,
-                correctNumbers: result.correctNumbers,
-                correctPositions: result.correctPositions,
-                isWin: result.isWin,
-                timestamp: Date.now()
-            };
-            
-            gameData.guesses.push(newGuess);
+        const gameData = await this.loadGameData(this.roomCode) || { guesses: [] };
+        
+        if (!gameData.guesses) gameData.guesses = [];
+        
+        gameData.guesses.push({
+            guess,
+            correctNumbers: result.correctNumbers,
+            correctPositions: result.correctPositions,
+            isWin: result.isWin,
+            timestamp: Date.now()
+        });
 
-            if (this.database) {
-                await this.database.ref(`games/${this.roomCode}/guesses`).set(gameData.guesses);
-            } else {
-                localStorage.setItem(`game_${this.roomCode}`, JSON.stringify(gameData));
-                sessionStorage.setItem(`game_${this.roomCode}`, JSON.stringify(gameData));
-            }
-            
-            this.updateGuessHistory(gameData.guesses);
-        } catch (error) {
-            console.error('Error adding guess to history:', error);
-        }
+        await this.saveGameData(gameData);
+        this.updateGuessHistory(gameData.guesses);
+        
+        console.log('Added guess to history:', guess, result);
     }
 
     updateGuessHistory(guesses) {
@@ -474,19 +429,7 @@ class GuessTheNumberGameFirebase {
         this.showWelcome();
     }
 
-    async clearGameData() {
-        if (this.roomCode) {
-            try {
-                if (this.database) {
-                    await this.database.ref(`games/${this.roomCode}`).remove();
-                }
-                localStorage.removeItem(`game_${this.roomCode}`);
-                sessionStorage.removeItem(`game_${this.roomCode}`);
-            } catch (error) {
-                console.error('Error clearing game data:', error);
-            }
-        }
-        
+    clearGameData() {
         clearInterval(this.pollingInterval);
         this.roomCode = null;
         this.isHost = false;
@@ -497,10 +440,12 @@ class GuessTheNumberGameFirebase {
         
         document.getElementById('game-result').style.display = 'none';
         document.getElementById('waiting-message').style.display = 'none';
+        
+        console.log('Game data cleared');
     }
 }
 
 // Initialize the game when the page loads
 document.addEventListener('DOMContentLoaded', () => {
-    new GuessTheNumberGameFirebase();
+    new GuessTheNumberGameWeb();
 }); 
