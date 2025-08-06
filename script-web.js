@@ -119,7 +119,7 @@ class GuessTheNumberGameWeb {
     }
 
     showCreateRoom() {
-        this.roomCode = this.generateRoomCode();
+        this.roomCode = this.generateRoomCode().toLowerCase();
         console.log('Generated room code:', this.roomCode);
         document.getElementById('room-code').textContent = this.roomCode;
         document.getElementById('secret-number').value = '';
@@ -150,24 +150,21 @@ class GuessTheNumberGameWeb {
     // Use localStorage with room-based keys for cross-device simulation
     async saveGameData(data) {
         try {
-            console.log('Saving game data for room:', this.roomCode, data);
+            const normalizedRoomCode = this.roomCode.toLowerCase();
+            console.log('Saving game data for room:', normalizedRoomCode, data);
             
-            // Store in multiple ways for better reliability
+            // Store in cloudGames with normalized key
             const allGames = JSON.parse(localStorage.getItem('cloudGames') || '{}');
-            allGames[this.roomCode] = data;
+            allGames[normalizedRoomCode] = data;
             localStorage.setItem('cloudGames', JSON.stringify(allGames));
-            console.log('Saved to cloudGames:', this.roomCode);
+            console.log('Saved to cloudGames:', normalizedRoomCode);
             
             // Also store directly
-            localStorage.setItem(`game_${this.roomCode}`, JSON.stringify(data));
-            console.log('Saved to direct key:', `game_${this.roomCode}`);
-            
-            // Store with both possible case variations for safety
-            localStorage.setItem(`game_${this.roomCode.toLowerCase()}`, JSON.stringify(data));
-            localStorage.setItem(`game_${this.roomCode.toUpperCase()}`, JSON.stringify(data));
+            localStorage.setItem(`game_${normalizedRoomCode}`, JSON.stringify(data));
+            console.log('Saved to direct key:', `game_${normalizedRoomCode}`);
             
             // Verify the save worked
-            const verification = localStorage.getItem(`game_${this.roomCode}`);
+            const verification = localStorage.getItem(`game_${normalizedRoomCode}`);
             console.log('Verification - data exists after save:', !!verification);
             
             console.log('Game data saved successfully');
@@ -180,31 +177,24 @@ class GuessTheNumberGameWeb {
 
     async loadGameData(roomCode) {
         try {
-            console.log('Loading game data for room:', roomCode);
+            const normalizedRoomCode = roomCode.toLowerCase();
+            console.log('Loading game data for room:', normalizedRoomCode);
             
             // Try cloud storage first
             const allGames = JSON.parse(localStorage.getItem('cloudGames') || '{}');
-            if (allGames[roomCode]) {
-                console.log('Found in cloudGames:', allGames[roomCode]);
-                return allGames[roomCode];
+            if (allGames[normalizedRoomCode]) {
+                console.log('Found in cloudGames:', allGames[normalizedRoomCode]);
+                return allGames[normalizedRoomCode];
             }
             
-            // Try different case variations
-            const attempts = [
-                `game_${roomCode}`,
-                `game_${roomCode.toLowerCase()}`,
-                `game_${roomCode.toUpperCase()}`
-            ];
-            
-            for (const key of attempts) {
-                const data = localStorage.getItem(key);
-                if (data) {
-                    console.log('Found game data with key:', key);
-                    return JSON.parse(data);
-                }
+            // Try direct key
+            const data = localStorage.getItem(`game_${normalizedRoomCode}`);
+            if (data) {
+                console.log('Found game data with direct key:', `game_${normalizedRoomCode}`);
+                return JSON.parse(data);
             }
             
-            console.log('No game data found for room:', roomCode);
+            console.log('No game data found for room:', normalizedRoomCode);
             return null;
         } catch (error) {
             console.error('Error loading game data:', error);
