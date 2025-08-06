@@ -29,12 +29,25 @@ class GuessTheNumberGameFirebase {
 
     initializeFirebase() {
         try {
+            console.log('Initializing Firebase with config:', firebaseConfig);
             // Initialize Firebase
             if (!firebase.apps.length) {
                 firebase.initializeApp(firebaseConfig);
+                console.log('Firebase app initialized');
+            } else {
+                console.log('Firebase app already initialized');
             }
             this.database = firebase.database();
-            console.log('Firebase initialized successfully');
+            console.log('Firebase database connected successfully');
+            
+            // Test Firebase connection
+            this.database.ref('.info/connected').on('value', (snapshot) => {
+                if (snapshot.val() === true) {
+                    console.log('Firebase connected');
+                } else {
+                    console.log('Firebase disconnected');
+                }
+            });
         } catch (error) {
             console.warn('Firebase not available, falling back to localStorage:', error);
             this.database = null;
@@ -55,7 +68,10 @@ class GuessTheNumberGameFirebase {
         // Join room screen
         document.getElementById('back-from-join-btn').addEventListener('click', () => this.showWelcome());
         document.getElementById('join-game-btn').addEventListener('click', () => this.joinGame());
-        document.getElementById('room-code-input').addEventListener('input', (e) => this.validateRoomCode(e.target.value));
+        document.getElementById('room-code-input').addEventListener('input', (e) => {
+            e.target.value = e.target.value.toUpperCase();
+            this.validateRoomCode(e.target.value);
+        });
 
         // Game screen
         document.getElementById('submit-guess-btn').addEventListener('click', () => this.submitGuess());
@@ -166,7 +182,12 @@ class GuessTheNumberGameFirebase {
 
     async startGame() {
         const secretNumber = document.getElementById('secret-number').value;
-        if (!this.validateSecretNumber(secretNumber)) return;
+        console.log('Starting game with secret number:', secretNumber);
+        
+        if (!this.validateSecretNumber(secretNumber)) {
+            console.log('Secret number validation failed');
+            return;
+        }
 
         this.secretNumber = secretNumber;
         const gameData = {
@@ -180,17 +201,23 @@ class GuessTheNumberGameFirebase {
         };
 
         try {
+            console.log('Saving game data to Firebase for room:', this.roomCode);
+            console.log('Game data:', gameData);
+            
             if (this.database) {
                 // Use Firebase
                 await this.database.ref(`games/${this.roomCode}`).set(gameData);
+                console.log('Game data saved to Firebase successfully');
             } else {
                 // Fallback to localStorage
                 localStorage.setItem(`game_${this.roomCode}`, JSON.stringify(gameData));
                 sessionStorage.setItem(`game_${this.roomCode}`, JSON.stringify(gameData));
+                console.log('Game data saved to localStorage (Firebase fallback)');
             }
             
             document.getElementById('waiting-message').style.display = 'block';
             this.startPollingForPlayer();
+            console.log('Game created with room code:', this.roomCode);
         } catch (error) {
             console.error('Error creating game:', error);
             document.getElementById('number-error').textContent = 'Error creating game. Please try again.';
@@ -199,30 +226,38 @@ class GuessTheNumberGameFirebase {
 
     async joinGame() {
         const roomCode = document.getElementById('room-code-input').value.toUpperCase();
+        console.log('Attempting to join room:', roomCode);
+        
         if (!this.validateRoomCode(roomCode)) {
-            document.getElementById('join-error').textContent = 'Invalid room code format';
+            console.log('Room code validation failed for:', roomCode);
+            document.getElementById('join-error').textContent = 'Invalid room code format (must be 7 letters)';
             return;
         }
 
         try {
             let gameData;
+            console.log('Looking for game data in Firebase for room:', roomCode);
             
             if (this.database) {
                 // Use Firebase
                 const snapshot = await this.database.ref(`games/${roomCode}`).once('value');
                 gameData = snapshot.val();
+                console.log('Firebase response for room', roomCode, ':', gameData);
             } else {
                 // Fallback to localStorage
                 const localData = localStorage.getItem(`game_${roomCode}`) || sessionStorage.getItem(`game_${roomCode}`);
                 gameData = localData ? JSON.parse(localData) : null;
+                console.log('localStorage fallback data:', gameData);
             }
 
             if (!gameData) {
-                document.getElementById('join-error').textContent = 'Room not found';
+                console.log('No game data found for room:', roomCode);
+                document.getElementById('join-error').textContent = `Room "${roomCode}" not found. Make sure the room creator has started the game.`;
                 return;
             }
 
             if (gameData.guesserId) {
+                console.log('Room is full. Existing guesser:', gameData.guesserId);
                 document.getElementById('join-error').textContent = 'Room is full';
                 return;
             }
