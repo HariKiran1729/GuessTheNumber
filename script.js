@@ -149,7 +149,9 @@ class GuessTheNumberGame {
             timestamp: Date.now()
         };
 
+        // Store in both localStorage and sessionStorage for better cross-tab communication
         localStorage.setItem(`game_${this.roomCode}`, JSON.stringify(gameData));
+        sessionStorage.setItem(`game_${this.roomCode}`, JSON.stringify(gameData));
         
         document.getElementById('waiting-message').style.display = 'block';
         this.startPollingForPlayer();
@@ -162,9 +164,11 @@ class GuessTheNumberGame {
             return;
         }
 
-        const gameData = localStorage.getItem(`game_${roomCode}`);
+        // For GitHub Pages, we'll use a simplified approach where both players play in the same browser
+        // Check if game exists in localStorage or sessionStorage
+        let gameData = localStorage.getItem(`game_${roomCode}`) || sessionStorage.getItem(`game_${roomCode}`);
         if (!gameData) {
-            document.getElementById('join-error').textContent = 'Room not found';
+            document.getElementById('join-error').textContent = 'Room not found. Make sure the room creator is on the same device/browser.';
             return;
         }
 
@@ -177,7 +181,10 @@ class GuessTheNumberGame {
         // Join the game
         game.guesserId = this.generatePlayerId();
         game.gameActive = true;
+        
+        // Store in both localStorage and sessionStorage for better cross-tab communication
         localStorage.setItem(`game_${roomCode}`, JSON.stringify(game));
+        sessionStorage.setItem(`game_${roomCode}`, JSON.stringify(game));
 
         this.roomCode = roomCode;
         this.secretNumber = game.secretNumber;
@@ -214,7 +221,7 @@ class GuessTheNumberGame {
 
     startPollingForPlayer() {
         this.pollingInterval = setInterval(() => {
-            const gameData = localStorage.getItem(`game_${this.roomCode}`);
+            const gameData = localStorage.getItem(`game_${this.roomCode}`) || sessionStorage.getItem(`game_${this.roomCode}`);
             if (gameData) {
                 const game = JSON.parse(gameData);
                 if (game.guesserId && game.gameActive) {
@@ -235,7 +242,8 @@ class GuessTheNumberGame {
     loadGameState() {
         if (!this.roomCode) return;
         
-        const gameData = localStorage.getItem(`game_${this.roomCode}`);
+        // Check both localStorage and sessionStorage
+        const gameData = localStorage.getItem(`game_${this.roomCode}`) || sessionStorage.getItem(`game_${this.roomCode}`);
         if (gameData) {
             const game = JSON.parse(gameData);
             this.updateGuessHistory(game.guesses || []);
@@ -310,7 +318,7 @@ class GuessTheNumberGame {
     }
 
     addGuessToHistory(guess, result) {
-        const gameData = localStorage.getItem(`game_${this.roomCode}`);
+        const gameData = localStorage.getItem(`game_${this.roomCode}`) || sessionStorage.getItem(`game_${this.roomCode}`);
         const game = gameData ? JSON.parse(gameData) : { guesses: [] };
         
         if (!game.guesses) game.guesses = [];
@@ -323,7 +331,9 @@ class GuessTheNumberGame {
             timestamp: Date.now()
         });
 
+        // Store in both storage locations
         localStorage.setItem(`game_${this.roomCode}`, JSON.stringify(game));
+        sessionStorage.setItem(`game_${this.roomCode}`, JSON.stringify(game));
         this.updateGuessHistory(game.guesses);
     }
 
@@ -374,6 +384,7 @@ class GuessTheNumberGame {
     clearGameData() {
         if (this.roomCode) {
             localStorage.removeItem(`game_${this.roomCode}`);
+            sessionStorage.removeItem(`game_${this.roomCode}`);
         }
         
         clearInterval(this.pollingInterval);
