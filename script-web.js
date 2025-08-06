@@ -29,7 +29,10 @@ class GuessTheNumberGameWeb {
         // Join room screen
         document.getElementById('back-from-join-btn').addEventListener('click', () => this.showWelcome());
         document.getElementById('join-game-btn').addEventListener('click', () => this.joinGame());
-        document.getElementById('room-code-input').addEventListener('input', (e) => this.validateRoomCode(e.target.value));
+        document.getElementById('room-code-input').addEventListener('input', (e) => {
+            e.target.value = e.target.value.toLowerCase();
+            this.validateRoomCode(e.target.value);
+        });
 
         // Game screen
         document.getElementById('submit-guess-btn').addEventListener('click', () => this.submitGuess());
@@ -42,7 +45,7 @@ class GuessTheNumberGameWeb {
     }
 
     generateRoomCode() {
-        const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const letters = 'abcdefghijklmnopqrstuvwxyz';
         let code = '';
         for (let i = 0; i < 7; i++) {
             code += letters.charAt(Math.floor(Math.random() * letters.length));
@@ -90,7 +93,7 @@ class GuessTheNumberGameWeb {
 
     validateRoomCode(code) {
         const errorElement = document.getElementById('join-error');
-        if (code.length === 7 && /^[A-Z]{7}$/.test(code.toUpperCase())) {
+        if (code.length === 7 && /^[a-z]{7}$/i.test(code.toLowerCase())) {
             errorElement.textContent = '';
             return true;
         }
@@ -146,17 +149,21 @@ class GuessTheNumberGameWeb {
     // Use localStorage with room-based keys for cross-device simulation
     async saveGameData(data) {
         try {
-            // Try cloud storage first (simplified approach)
-            const cloudKey = `game_${this.roomCode}_${Date.now()}`;
+            console.log('Saving game data for room:', this.roomCode, data);
             
-            // For now, use localStorage with a cloud-like structure
+            // Store in multiple ways for better reliability
             const allGames = JSON.parse(localStorage.getItem('cloudGames') || '{}');
             allGames[this.roomCode] = data;
             localStorage.setItem('cloudGames', JSON.stringify(allGames));
             
-            // Also store with timestamp for persistence
+            // Also store directly
             localStorage.setItem(`game_${this.roomCode}`, JSON.stringify(data));
             
+            // Store with both possible case variations for safety
+            localStorage.setItem(`game_${this.roomCode.toLowerCase()}`, JSON.stringify(data));
+            localStorage.setItem(`game_${this.roomCode.toUpperCase()}`, JSON.stringify(data));
+            
+            console.log('Game data saved successfully');
             return true;
         } catch (error) {
             console.error('Error saving game data:', error);
@@ -166,15 +173,32 @@ class GuessTheNumberGameWeb {
 
     async loadGameData(roomCode) {
         try {
+            console.log('Loading game data for room:', roomCode);
+            
             // Try cloud storage first
             const allGames = JSON.parse(localStorage.getItem('cloudGames') || '{}');
             if (allGames[roomCode]) {
+                console.log('Found in cloudGames:', allGames[roomCode]);
                 return allGames[roomCode];
             }
             
-            // Fallback to direct localStorage
-            const data = localStorage.getItem(`game_${roomCode}`);
-            return data ? JSON.parse(data) : null;
+            // Try different case variations
+            const attempts = [
+                `game_${roomCode}`,
+                `game_${roomCode.toLowerCase()}`,
+                `game_${roomCode.toUpperCase()}`
+            ];
+            
+            for (const key of attempts) {
+                const data = localStorage.getItem(key);
+                if (data) {
+                    console.log('Found game data with key:', key);
+                    return JSON.parse(data);
+                }
+            }
+            
+            console.log('No game data found for room:', roomCode);
+            return null;
         } catch (error) {
             console.error('Error loading game data:', error);
             return null;
@@ -207,7 +231,7 @@ class GuessTheNumberGameWeb {
     }
 
     async joinGame() {
-        const roomCode = document.getElementById('room-code-input').value.toUpperCase();
+        const roomCode = document.getElementById('room-code-input').value.toLowerCase().trim();
         if (!this.validateRoomCode(roomCode)) {
             document.getElementById('join-error').textContent = 'Invalid room code format';
             return;
@@ -215,7 +239,14 @@ class GuessTheNumberGameWeb {
 
         const gameData = await this.loadGameData(roomCode);
         
+        console.log('Trying to join room:', roomCode);
+        console.log('Found game data:', gameData);
+        
         if (!gameData) {
+            // Check if there are any games at all
+            const allGames = JSON.parse(localStorage.getItem('cloudGames') || '{}');
+            console.log('All available games:', Object.keys(allGames));
+            
             document.getElementById('join-error').textContent = 'Room not found. Make sure the room code is correct.';
             return;
         }
