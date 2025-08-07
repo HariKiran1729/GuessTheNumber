@@ -1,12 +1,14 @@
-// Firebase configuration - Working demo database for immediate use
+// Firebase configuration - Replace with your real Firebase config
 const firebaseConfig = {
-    apiKey: "AIzaSyC8lLdyW8nK5yJ2X7M3VqKgRpHfTmNsO9E",
-    authDomain: "guess-the-number-demo.firebaseapp.com",
-    databaseURL: "https://guess-the-number-demo-default-rtdb.firebaseio.com/",
-    projectId: "guess-the-number-demo",
-    storageBucket: "guess-the-number-demo.appspot.com",
-    messagingSenderId: "987654321098",
-    appId: "1:987654321098:web:1a2b3c4d5e6f7g8h9i"
+    // REPLACE THIS ENTIRE OBJECT WITH YOUR REAL FIREBASE CONFIG
+    // Copy from Firebase Console → Project Settings → Your apps → Web app config
+    apiKey: "AIzaSyCwFNl72EByGwtHh9cPQ3dLGQS_JYtRWac",
+    authDomain: "guess-number-multiplayer.firebaseapp.com",
+    databaseURL: "https://guess-number-multiplayer-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "guess-number-multiplayer",
+    storageBucket: "guess-number-multiplayer.firebasestorage.app",
+    messagingSenderId: "523672261565",
+    appId: "1:523672261565:web:259de8ac49f9b3730338d4"
 };
 
 class GuessTheNumberGameFirebase {
