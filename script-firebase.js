@@ -254,7 +254,7 @@ class GuessTheNumberGameFirebase {
 
             if (!gameData) {
                 console.log('No game data found for room:', roomCode);
-                document.getElementById('join-error').textContent = `Room "${roomCode}" not found. Make sure the room creator has started the game.`;
+                document.getElementById('join-error').textContent = `Room "${roomCode}" not found. Join the room after the room creator has started the game.`;
                 return;
             }
 
@@ -359,6 +359,12 @@ class GuessTheNumberGameFirebase {
 
             if (gameData) {
                 this.updateGuessHistory(gameData.guesses || []);
+                
+                // Update the tries counter for both host and guesser
+                const currentGuessCount = gameData.guesses ? gameData.guesses.length : 0;
+                this.guessCount = currentGuessCount;
+                const triesLeft = this.maxGuesses - currentGuessCount;
+                document.getElementById('tries-count').textContent = triesLeft;
                 
                 if (gameData.guesses && gameData.guesses.length > 0) {
                     const lastGuess = gameData.guesses[gameData.guesses.length - 1];
@@ -468,22 +474,43 @@ class GuessTheNumberGameFirebase {
     }
 
     updateGuessHistory(guesses) {
-        const historyList = document.getElementById('history-list');
-        historyList.innerHTML = '';
+        const guessTable = document.getElementById('guess-table');
+        guessTable.innerHTML = '';
 
-        guesses.forEach((entry, index) => {
-            const historyItem = document.createElement('div');
-            historyItem.className = 'history-item';
-            historyItem.innerHTML = `
-                <span class="guess-number">Guess ${index + 1}: ${entry.guess}</span>
-                <span class="result">
-                    ${entry.correctNumbers} correct numbers, 
-                    ${entry.correctPositions} correct positions
-                    ${entry.isWin ? ' 🎉 WINNER!' : ''}
-                </span>
-            `;
-            historyList.appendChild(historyItem);
-        });
+        // Create 15 cells for the 5x3 grid
+        for (let i = 0; i < 15; i++) {
+            const guessItem = document.createElement('div');
+            guessItem.className = 'guess-item';
+            
+            if (i < guesses.length) {
+                const entry = guesses[i];
+                
+                // Determine color based on correct numbers and positions
+                let colorClass = 'red'; // default for < 4 correct numbers
+                if (entry.isWin) {
+                    colorClass = 'green';
+                } else if (entry.correctNumbers === 4 && entry.correctPositions < 4) {
+                    colorClass = 'yellow';
+                }
+                
+                guessItem.classList.add(colorClass);
+                guessItem.innerHTML = `
+                    <div class="guess-number">${entry.guess}</div>
+                    <div class="guess-result">
+                        ${entry.correctNumbers}N ${entry.correctPositions}P
+                        ${entry.isWin ? '<br/>🎉 WIN!' : ''}
+                    </div>
+                `;
+            } else {
+                // Empty slot
+                guessItem.innerHTML = `
+                    <div class="guess-number">----</div>
+                    <div class="guess-result">-- --</div>
+                `;
+            }
+            
+            guessTable.appendChild(guessItem);
+        }
     }
 
     endGame(isWin, totalGuesses) {
@@ -494,11 +521,21 @@ class GuessTheNumberGameFirebase {
         const resultMessage = document.getElementById('result-message');
         
         if (isWin) {
-            resultTitle.textContent = '🎉 Congratulations!';
-            resultMessage.textContent = `You guessed the number ${this.secretNumber} in ${totalGuesses} tries!`;
+            if (this.isHost) {
+                resultTitle.textContent = '😔 Player 2 Won!';
+                resultMessage.textContent = `Player 2 successfully guessed your secret number ${this.secretNumber} in ${totalGuesses} tries!`;
+            } else {
+                resultTitle.textContent = '🎉 You Won!';
+                resultMessage.textContent = `Congratulations! You guessed the number ${this.secretNumber} in ${totalGuesses} tries!`;
+            }
         } else {
-            resultTitle.textContent = '💔 Game Over';
-            resultMessage.textContent = `You've used all ${this.maxGuesses} tries. The number was ${this.secretNumber}.`;
+            if (this.isHost) {
+                resultTitle.textContent = '🎉 You Won!';
+                resultMessage.textContent = `Player 2 failed to guess your secret number ${this.secretNumber} in ${this.maxGuesses} tries. You win!`;
+            } else {
+                resultTitle.textContent = '💔 Game Over';
+                resultMessage.textContent = `You failed to guess the number in ${this.maxGuesses} tries. The secret number was ${this.secretNumber}.`;
+            }
         }
         
         document.getElementById('game-result').style.display = 'block';
