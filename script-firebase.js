@@ -24,6 +24,9 @@ class GuessTheNumberGameFirebase {
         this.pollingInterval = null;
         this.database = null;
         this.playerId = this.generatePlayerId();
+        this.playerName = '';
+        this.opponentName = '';
+        this.isSinglePlayer = false;
         
         this.initializeFirebase();
         this.initializeEventListeners();
@@ -58,8 +61,14 @@ class GuessTheNumberGameFirebase {
 
     initializeEventListeners() {
         // Welcome screen
+        document.getElementById('player-name').addEventListener('input', (e) => this.validatePlayerName(e.target.value));
+        document.getElementById('single-player-btn').addEventListener('click', () => this.showSinglePlayer());
         document.getElementById('create-room-btn').addEventListener('click', () => this.showCreateRoom());
         document.getElementById('join-room-btn').addEventListener('click', () => this.showJoinRoom());
+
+        // Single player screen
+        document.getElementById('back-from-single-btn').addEventListener('click', () => this.showWelcome());
+        document.getElementById('start-single-player-btn').addEventListener('click', () => this.startSinglePlayerGame());
 
         // Create room screen
         document.getElementById('back-from-create-btn').addEventListener('click', () => this.showWelcome());
@@ -96,6 +105,39 @@ class GuessTheNumberGameFirebase {
 
     generatePlayerId() {
         return Math.random().toString(36).substr(2, 9);
+    }
+
+    validatePlayerName(name) {
+        const errorElement = document.getElementById('name-error');
+        const buttons = ['single-player-btn', 'create-room-btn', 'join-room-btn'];
+        
+        if (name.trim().length === 0) {
+            errorElement.textContent = 'Please enter your name';
+            buttons.forEach(id => document.getElementById(id).disabled = true);
+            return false;
+        }
+        
+        if (name.length > 10) {
+            errorElement.textContent = 'Name must be 10 characters or less';
+            buttons.forEach(id => document.getElementById(id).disabled = true);
+            return false;
+        }
+        
+        errorElement.textContent = '';
+        buttons.forEach(id => document.getElementById(id).disabled = false);
+        this.playerName = name.trim();
+        return true;
+    }
+
+    generateRandomSecretNumber() {
+        const digits = [];
+        while (digits.length < 4) {
+            const digit = Math.floor(Math.random() * 10).toString();
+            if (!digits.includes(digit)) {
+                digits.push(digit);
+            }
+        }
+        return digits.join('');
     }
 
     validateSecretNumber(number) {
@@ -154,7 +196,18 @@ class GuessTheNumberGameFirebase {
         this.clearGameData();
     }
 
+    showSinglePlayer() {
+        if (!this.validatePlayerName(this.playerName)) {
+            return;
+        }
+        this.showScreen('single-player-screen');
+        this.isSinglePlayer = true;
+    }
+
     showCreateRoom() {
+        if (!this.validatePlayerName(this.playerName)) {
+            return;
+        }
         this.roomCode = this.generateRoomCode();
         document.getElementById('room-code').textContent = this.roomCode;
         document.getElementById('secret-number').value = '';
@@ -162,13 +215,18 @@ class GuessTheNumberGameFirebase {
         document.getElementById('start-game-btn').disabled = true;
         this.showScreen('create-room-screen');
         this.isHost = true;
+        this.isSinglePlayer = false;
     }
 
     showJoinRoom() {
+        if (!this.validatePlayerName(this.playerName)) {
+            return;
+        }
         document.getElementById('room-code-input').value = '';
         document.getElementById('join-error').textContent = '';
         this.showScreen('join-room-screen');
         this.isHost = false;
+        this.isSinglePlayer = false;
     }
 
     copyRoomCode() {
@@ -180,6 +238,17 @@ class GuessTheNumberGameFirebase {
                 button.textContent = originalText;
             }, 2000);
         });
+    }
+
+    startSinglePlayerGame() {
+        this.secretNumber = this.generateRandomSecretNumber();
+        this.gameActive = true;
+        this.isHost = false; // Player is the guesser in single player mode
+        this.isSinglePlayer = true;
+        this.roomCode = 'SINGLE';
+        this.opponentName = 'Computer';
+        console.log('Single player game started. Secret number:', this.secretNumber);
+        this.showGameScreen();
     }
 
     async startGame() {
@@ -196,7 +265,9 @@ class GuessTheNumberGameFirebase {
             roomCode: this.roomCode,
             secretNumber: secretNumber,
             hostId: this.playerId,
+            hostName: this.playerName,
             guesserId: null,
+            guesserName: null,
             gameActive: false,
             guesses: [],
             timestamp: Date.now()
@@ -266,11 +337,13 @@ class GuessTheNumberGameFirebase {
 
             // Join the game
             gameData.guesserId = this.playerId;
+            gameData.guesserName = this.playerName;
             gameData.gameActive = true;
             
             if (this.database) {
                 await this.database.ref(`games/${roomCode}`).update({
                     guesserId: this.playerId,
+                    guesserName: this.playerName,
                     gameActive: true
                 });
             } else {
@@ -280,6 +353,7 @@ class GuessTheNumberGameFirebase {
 
             this.roomCode = roomCode;
             this.secretNumber = gameData.secretNumber;
+            this.opponentName = gameData.hostName || 'Host';
             this.gameActive = true;
             this.showGameScreen();
         } catch (error) {
@@ -291,14 +365,21 @@ class GuessTheNumberGameFirebase {
     showGameScreen() {
         document.getElementById('current-room-code').textContent = this.roomCode;
         document.getElementById('tries-count').textContent = this.maxGuesses;
-        document.getElementById('player-role').textContent = this.isHost ? 
-            'You are the host. Waiting for guesses...' : 
-            'You are the guesser. Start guessing!';
+        
+        if (this.isSinglePlayer) {
+            document.getElementById('player-role').textContent = `${this.playerName}, you're playing against the Computer. Start guessing!`;
+        } else if (this.isHost) {
+            document.getElementById('player-role').textContent = `${this.playerName}, you are the host. Waiting for guesses...`;
+        } else {
+            document.getElementById('player-role').textContent = `${this.playerName}, you are the guesser. Start guessing!`;
+        }
         
         this.updateGameInterface();
         this.showScreen('game-screen');
         
-        this.startPollingForUpdates();
+        if (!this.isSinglePlayer) {
+            this.startPollingForUpdates();
+        }
     }
 
     updateGameInterface() {
@@ -328,6 +409,7 @@ class GuessTheNumberGameFirebase {
 
                 if (gameData && gameData.guesserId && gameData.gameActive) {
                     this.gameActive = true;
+                    this.opponentName = gameData.guesserName || 'Guesser';
                     clearInterval(this.pollingInterval);
                     this.showGameScreen();
                 }
@@ -395,7 +477,12 @@ class GuessTheNumberGameFirebase {
         }
 
         const result = this.checkGuess(guess);
-        await this.addGuessToHistory(guess, result);
+        
+        if (this.isSinglePlayer) {
+            this.addSinglePlayerGuessToHistory(guess, result);
+        } else {
+            await this.addGuessToHistory(guess, result);
+        }
         
         guessInput.value = '';
         this.guessCount++;
@@ -434,6 +521,21 @@ class GuessTheNumberGameFirebase {
             correctPositions,
             isWin
         };
+    }
+
+    addSinglePlayerGuessToHistory(guess, result) {
+        if (!this.gameHistory) this.gameHistory = [];
+        
+        const newGuess = {
+            guess,
+            correctNumbers: result.correctNumbers,
+            correctPositions: result.correctPositions,
+            isWin: result.isWin,
+            timestamp: Date.now()
+        };
+        
+        this.gameHistory.push(newGuess);
+        this.updateGuessHistory(this.gameHistory);
     }
 
     async addGuessToHistory(guess, result) {
@@ -521,20 +623,26 @@ class GuessTheNumberGameFirebase {
         const resultMessage = document.getElementById('result-message');
         
         if (isWin) {
-            if (this.isHost) {
-                resultTitle.textContent = '😔 Player 2 Won!';
-                resultMessage.textContent = `Player 2 successfully guessed your secret number ${this.secretNumber} in ${totalGuesses} tries!`;
+            if (this.isSinglePlayer) {
+                resultTitle.textContent = '🎉 You Won!';
+                resultMessage.textContent = `Congratulations ${this.playerName}! You guessed the computer's number ${this.secretNumber} in ${totalGuesses} tries!`;
+            } else if (this.isHost) {
+                resultTitle.textContent = `😔 ${this.opponentName} Won!`;
+                resultMessage.textContent = `${this.opponentName} successfully guessed your secret number ${this.secretNumber} in ${totalGuesses} tries!`;
             } else {
                 resultTitle.textContent = '🎉 You Won!';
-                resultMessage.textContent = `Congratulations! You guessed the number ${this.secretNumber} in ${totalGuesses} tries!`;
+                resultMessage.textContent = `Congratulations ${this.playerName}! You guessed ${this.opponentName}'s number ${this.secretNumber} in ${totalGuesses} tries!`;
             }
         } else {
-            if (this.isHost) {
-                resultTitle.textContent = '🎉 You Won!';
-                resultMessage.textContent = `Player 2 failed to guess your secret number ${this.secretNumber} in ${this.maxGuesses} tries. You win!`;
+            if (this.isSinglePlayer) {
+                resultTitle.textContent = '💔 Game Over';
+                resultMessage.textContent = `Sorry ${this.playerName}, you failed to guess the computer's number in ${this.maxGuesses} tries. The secret number was ${this.secretNumber}.`;
+            } else if (this.isHost) {
+                resultTitle.textContent = `🎉 ${this.playerName} Won!`;
+                resultMessage.textContent = `${this.opponentName} failed to guess your secret number ${this.secretNumber} in ${this.maxGuesses} tries. You win!`;
             } else {
                 resultTitle.textContent = '💔 Game Over';
-                resultMessage.textContent = `You failed to guess the number in ${this.maxGuesses} tries. The secret number was ${this.secretNumber}.`;
+                resultMessage.textContent = `Sorry ${this.playerName}, you failed to guess ${this.opponentName}'s number in ${this.maxGuesses} tries. The secret number was ${this.secretNumber}.`;
             }
         }
         
@@ -568,6 +676,8 @@ class GuessTheNumberGameFirebase {
         this.guessCount = 0;
         this.gameHistory = [];
         this.gameActive = false;
+        this.isSinglePlayer = false;
+        this.opponentName = '';
         
         document.getElementById('game-result').style.display = 'none';
         document.getElementById('waiting-message').style.display = 'none';

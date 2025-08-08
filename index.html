@@ -15,7 +15,14 @@
         <!-- Welcome Screen -->
         <div id="welcome-screen" class="screen active">
             <h1>🎯 Guess The Number</h1>
-            <p class="subtitle">Challenge your friend in this exciting number guessing game!</p>
+            <p class="subtitle">Challenge your friend or play solo in this exciting number guessing game!</p>
+            
+            <!-- Player Name Input -->
+            <div class="input-group">
+                <label for="player-name">Enter your name (max 10 characters):</label>
+                <input type="text" id="player-name" maxlength="10" placeholder="Your name">
+                <div id="name-error" class="error-message"></div>
+            </div>
             
             <!-- Game Rules -->
             <div class="game-rules">
@@ -41,8 +48,19 @@
             </div>
             
             <div class="button-group">
-                <button id="create-room-btn" class="btn btn-primary">Create Room</button>
-                <button id="join-room-btn" class="btn btn-secondary">Join Room</button>
+                <button id="single-player-btn" class="btn btn-primary" disabled>Single Player</button>
+                <button id="create-room-btn" class="btn btn-primary" disabled>Create Room</button>
+                <button id="join-room-btn" class="btn btn-secondary" disabled>Join Room</button>
+            </div>
+        </div>
+
+        <!-- Single Player Screen -->
+        <div id="single-player-screen" class="screen">
+            <h2>Single Player Mode</h2>
+            <p>The computer has generated a secret 4-digit number. Can you guess it in 15 tries?</p>
+            <div class="button-group">
+                <button id="start-single-player-btn" class="btn btn-primary">Start Game</button>
+                <button id="back-from-single-btn" class="btn btn-secondary">Back</button>
             </div>
         </div>
 
@@ -64,7 +82,7 @@
                 <button id="back-from-create-btn" class="btn btn-secondary">Back</button>
             </div>
             <div id="waiting-message" class="waiting-message" style="display: none;">
-                <p>Waiting for player 2 to join...</p>
+                <p>Waiting for another player to join...</p>
                 <div class="spinner"></div>
             </div>
         </div>
